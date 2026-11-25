@@ -1,0 +1,4 @@
+
+# CMOS fork: local Python environment
+.env/
+.env-install.log

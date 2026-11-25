@@ -55,7 +55,7 @@ from exceptions import NotSupportedError
 from frame_selector import FrameSelectorWidget
 from frame_viewer import FrameViewerWidget
 from frames import Frames
-from job_editor import JobEditor, FileDialog
+from job_editor import JobEditor, FileDialog, Job
 from main_gui import Ui_MainWindow
 from miscellaneous import Miscellaneous
 from postproc_editor import PostprocEditorWidget
@@ -738,6 +738,32 @@ class PlanetarySystemStacker(QtWidgets.QMainWindow):
             self.job_index -= 1
             self.display_widget(None, display=False)
             self.work_next_task("Read frames")
+
+    def load_jobs(self, names):
+        """
+        CMOS fork: put the given files into the job list, as the job editor does when its OK
+        button is pressed. Called for "--gui FILE..." on the command line.
+
+        :param names: List of file or directory names
+        :return: -
+        """
+
+        jobs = []
+        for name in names:
+            try:
+                jobs.append(Job(name))
+            except Exception as e:
+                print("Cannot add job " + name + ": " + str(e))
+        if not jobs:
+            return
+        self.jobs = jobs
+        self.job_number = len(jobs)
+        self.job_index = 0
+        self.activity = "Read frames"
+        self.activate_gui_elements(
+            [self.ui.menuFile, self.ui.menuEdit, self.ui.menuCalibrate, self.ui.box_automatic],
+            True)
+        self.update_status()
 
     def play(self):
         """
@@ -1451,6 +1477,15 @@ def main():
     # "pyinstaller planetary_system_stacker.spec" on Windows, or
     # "pyinstaller planetary_system_stacker_linux.spec" on Linux
     #
+
+    # CMOS fork: "--gui FILE..." opens the GUI with these files already in the job list
+    # (used by CMOS Browser's "Lucky imaging" button).
+    if len(argv) > 2 and argv[1] == "--gui":
+        app = QtWidgets.QApplication(argv[:1])
+        myapp = PlanetarySystemStacker()
+        myapp.show()
+        myapp.load_jobs(argv[2:])
+        exit(app.exec_())
 
     # If PSS is started without command line arguments, open the GUI.
     if len(argv) <= 1:

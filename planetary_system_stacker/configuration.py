@@ -221,6 +221,12 @@ class Configuration(object):
 
         self.rank_frames_pixel_stride = 2
         self.rank_frames_method = "Laplace"
+        # CMOS fork: ranking by star FWHM in arcseconds (rank_frames_method "FWHM (arcsec)").
+        # Usually set per job from a "<input>.pss.json" file (see cmos_job.py).
+        self.rank_frames_pixel_scale = 1.0  # arcsec per pixel
+        self.rank_frames_fwhm_mode = "median"  # "median" of many stars, or "reference" star
+        self.rank_frames_reference_star = None  # (x, y) in frame pixels for mode "reference"
+        self.rank_frames_search_radius = 25  # pixels the reference star may move between frames
 
         self.align_frames_method = "MultiLevelCorrelation"
         self.align_frames_rectangle_black_threshold = 10240

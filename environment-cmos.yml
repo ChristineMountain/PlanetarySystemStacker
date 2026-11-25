@@ -1,0 +1,13 @@
+name: pss
+channels: [conda-forge]
+dependencies:
+  - python=3.11
+  - numpy<2
+  - scipy
+  - astropy
+  - matplotlib
+  - psutil
+  - pyqt=5
+  - scikit-image
+  - py-opencv
+  - zstandard

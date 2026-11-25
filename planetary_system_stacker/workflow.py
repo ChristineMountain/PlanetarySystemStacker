@@ -31,6 +31,7 @@ from PyQt5 import QtCore
 from numpy import uint16, uint8
 
 from align_frames import AlignFrames
+from cmos_job import apply_job_settings, describe_fwhm
 from alignment_points import AlignmentPoints
 from configuration import PostprocDataObject
 from exceptions import NotSupportedError, InternalError, ArgumentError, Error
@@ -189,6 +190,15 @@ class Workflow(QtCore.QObject):
 
         # Force the garbage collector to release unreferenced objects.
         gc.collect()
+
+        # CMOS fork: per-job settings (FWHM ranking, pixel scale, reference star) from
+        # "<input>.pss.json", if present; otherwise the normal settings.
+        self.cmos_settings = None
+        if self.job.type != 'postproc':
+            try:
+                self.cmos_settings = apply_job_settings(self.configuration, self.job.name)
+            except (OSError, ValueError, KeyError, TypeError, IndexError) as e:
+                print("Could not read the job settings file: " + str(e))
 
         # Update the status bar in the main GUI.
         self.input_name = self.job.file_name
@@ -462,6 +472,20 @@ class Workflow(QtCore.QObject):
             Miscellaneous.protocol(
                 "           Index of best frame: " + str(self.rank_frames.frame_ranks_max_index + 1),
                 self.attached_log_file, precede_with_timestamp=False)
+
+        # CMOS fork: report the seeing (star FWHM in arcsec) and save it per frame.
+        if self.configuration.rank_frames_method == "FWHM (arcsec)":
+            c = self.configuration
+            how = ("reference star at (%.0f, %.0f)" % tuple(c.rank_frames_reference_star)
+                   if c.rank_frames_reference_star is not None else "median of the brightest stars")
+            lines = ["           Ranked by star FWHM, " + how + ", %.4f arcsec/pixel"
+                     % c.rank_frames_pixel_scale]
+            try:
+                lines += describe_fwhm(self.rank_frames, splitext(self.job.name)[0] + "_fwhm.csv")
+            except OSError as e:
+                lines.append("           Could not write the FWHM table: " + str(e))
+            for line in lines:
+                Miscellaneous.protocol(line, self.attached_log_file, precede_with_timestamp=False)
 
         self.work_next_task_signal.emit("Select frames")
 

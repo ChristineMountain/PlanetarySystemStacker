@@ -1,3 +1,37 @@
+# PlanetarySystemStacker — CMOS fork (star FWHM ranking)
+
+This is a fork of [Rolf Hempel's PlanetarySystemStacker](https://github.com/Rolf-Hempel/PlanetarySystemStacker)
+(GPL-3.0), adapted for lucky imaging of **star fields** with the CMOS camera. All credit for the
+stacking program goes to the original author; the changes below are ours.
+
+**What the fork adds**
+
+* A frame-ranking method **"FWHM (arcsec)"** (`star_fwhm.py`, `rank_frames.py`): every frame is
+  scored by the full width at half maximum of its stars, converted to arcseconds with the pixel
+  scale, instead of by overall sharpness (the original methods, made for the Moon, Sun and
+  planets). Two ways to measure:
+  * *median*: the median FWHM of the brightest unsaturated stars (2-D Gaussian fits), or
+  * *reference*: the FWHM of one chosen star, searched for within 25 pixels of its position.
+
+  Saturated stars and hot pixels are skipped. The log reports the best / median / worst FWHM,
+  and `<input>_fwhm.csv` lists the FWHM and rank of every frame.
+* Per-job settings from `<input>.pss.json` next to the input file (`cmos_job.py`):
+  ranking method, pixel scale (arcsec/pixel), median or reference star, and its position.
+* `run-pss.sh --gui FILE...` opens the program with these files already in the job list.
+* `run-pss.sh install` creates the Python environment (`environment-cmos.yml`) with micromamba.
+
+**Use with CMOS Browser**: open a multi-frame exposure, click a star to pin it, then
+*Lucky imaging…*. CMOS Browser cuts a box around the star out of every frame, saves it as a SER
+video in `~/lucky-imaging/<night>/` with its `.pss.json`, and opens it here; press *Start*.
+
+Install (once): `git clone https://github.com/ChristineMountain/PlanetarySystemStacker.git ~/PlanetarySystemStacker && ~/PlanetarySystemStacker/run-pss.sh install`
+
+Note: the alignment-point stacking is still the original one, tuned for planetary surfaces; on
+sparse star fields many of its local shift measurements fail, so the stack is less sharp than
+the best single frames.
+
+---
+
 # PlanetarySystemStacker (PSS)
 _Produce a sharp image of a planetary system object (moon, sun, planets) from many seeing-affected frames using the "lucky imaging" technique._
 

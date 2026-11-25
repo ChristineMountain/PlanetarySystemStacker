@@ -34,6 +34,7 @@ from configuration import Configuration
 from exceptions import ArgumentError, NotSupportedError, Error
 from frames import Frames
 from miscellaneous import Miscellaneous
+from star_fwhm import frame_fwhm
 
 
 class RankFrames(object):
@@ -74,6 +75,10 @@ class RankFrames(object):
         self.frame_ranks_max_index = None
         self.frame_ranks_max_value = None
 
+        # CMOS fork: FWHM in arcsec per original frame index (method "FWHM (arcsec)" only).
+        self.frame_fwhm_arcsec_original = None
+        self.frame_fwhm_stars_original = None
+
         self.progress_signal = progress_signal
         self.signal_step_size = max(int(self.number_original / 10), 1)
 
@@ -84,7 +89,9 @@ class RankFrames(object):
         :return: -
         """
 
-        if self.configuration.rank_frames_method == "xy gradient":
+        if self.configuration.rank_frames_method == "FWHM (arcsec)":
+            method = "fwhm"
+        elif self.configuration.rank_frames_method == "xy gradient":
             method = Miscellaneous.local_contrast
         elif self.configuration.rank_frames_method == "Laplace":
             method = Miscellaneous.local_contrast_laplace
@@ -99,7 +106,27 @@ class RankFrames(object):
             self.frames.reset_index_translation()
 
         # For all frames compute the quality with the selected method.
-        if method != Miscellaneous.local_contrast_laplace:
+        if method == "fwhm":
+            # CMOS fork: the score is 1 / FWHM, so the sharpest stars rank first. Frames where
+            # no star could be measured get score 0 (ranked last).
+            c = self.configuration
+            mode = c.rank_frames_fwhm_mode if c.rank_frames_reference_star is not None else "median"
+            self.frame_fwhm_arcsec_original, self.frame_fwhm_stars_original = [], []
+            for frame_index in range(self.number_original):
+                if self.progress_signal is not None and frame_index % self.signal_step_size == 1:
+                    self.progress_signal.emit("Rank all frames (star FWHM)",
+                                              int(round(10*frame_index / self.number_original) * 10))
+                fwhm, n_stars, _ = frame_fwhm(self.frames.frames_mono(frame_index), mode=mode,
+                                              reference=c.rank_frames_reference_star,
+                                              search_radius=c.rank_frames_search_radius)
+                fwhm_arcsec = fwhm * c.rank_frames_pixel_scale
+                self.frame_fwhm_arcsec_original.append(fwhm_arcsec)
+                self.frame_fwhm_stars_original.append(n_stars)
+                self.frame_ranks_original.append(0. if fwhm_arcsec == float("inf") else
+                                                 1. / fwhm_arcsec)
+            if not any(self.frame_ranks_original):
+                raise Error("no star could be measured in any frame (FWHM ranking)")
+        elif method != Miscellaneous.local_contrast_laplace:
             for frame_index in range(self.number_original):
                 frame = self.frames.frames_mono_blurred(frame_index)
                 if self.progress_signal is not None and frame_index % self.signal_step_size == 1:
@@ -124,6 +151,8 @@ class RankFrames(object):
                         self.frames.average_brightness(frame_index))
                 else:
                     self.frame_ranks_original.append(meanStdDev(frame)[1][0][0])
+
+        self.frame_ranks_original = array(self.frame_ranks_original, dtype=float)
 
         # Sort the frame indices in descending order of quality.
         self.quality_sorted_indices_original = sorted(range(self.number_original),
